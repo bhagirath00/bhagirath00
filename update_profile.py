@@ -131,14 +131,31 @@ def get_github_stats():
 def load_and_trim_ascii():
     """Reads ascii-art.txt, crops empty margins, and strips uniform indentation."""
     ascii_path = "ascii-art.txt"
-    if not os.path.exists(ascii_path):
+    lines = []
+    
+    if os.path.exists(ascii_path):
+        with open(ascii_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    else:
+        # Fallback to fetching remote ASCII art from GitHub Secrets URL or direct backup link
+        url = os.environ.get("ASCII_ART_URL") or "https://github.com/user-attachments/files/29977028/ascii-art.txt"
+        if url:
+
+            try:
+                res = requests.get(url, timeout=10)
+                if res.status_code == 200:
+                    lines = res.text.splitlines()
+                else:
+                    print(f"[!] Warning: Remote URL returned status code {res.status_code}")
+            except Exception as e:
+                print(f"[!] Error fetching remote ASCII art: {e}")
+                
+    if not lines:
         return ["  _____   ", " /  _  \\  ", "|  / \\  | ", "|  \\_/  | ", " \\_____/  "]
-        
-    with open(ascii_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
         
     # Crucial: strip trailing whitespace/spaces from the right side of the art
     lines = [line.rstrip() for line in lines]
+
     
     # Find active range (first non-empty to last non-empty line)
     first_idx = 0
@@ -156,10 +173,6 @@ def load_and_trim_ascii():
     if not active_lines:
         return ["(Empty ASCII Art)"]
         
-    # CRITICAL BUG FIX: Crop the bottom shoulder lines (lines 50-59) BEFORE calculating min_spaces!
-    # Slicing to 49 lines here removes the wide shoulders, so min_spaces will be evaluated 
-    # based on the head/neck lines only (which have ~32 leading spaces). 
-    # This shifts the face fully to column 0 on the left!
     active_lines = active_lines[:49]
         
     # Find minimum leading indentation spaces across the remaining head/neck lines
