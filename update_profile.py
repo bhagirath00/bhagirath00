@@ -193,8 +193,8 @@ def generate_svg(theme_name, stats, ascii_art):
     # Header format: hostname followed directly by dashes on the same line
     user_header = f"{USER_NAME.lower()} " + ("-" * 50)
     
-    # SVG Dimensions - Andrew's exact specifications
-    svg_width = 985
+    # SVG Dimensions
+    svg_width = 925
     svg_height = 530
     
     # Horizontal line separator
@@ -256,23 +256,26 @@ def generate_svg(theme_name, stats, ascii_art):
     svg_content.append(f'<rect width="{svg_width}px" height="{svg_height}px" class="bg"/>')
     
     # Left Side: Render ASCII Art
-    svg_content.append(f'<text x="15" y="{ascii_y_start}" class="ascii">')
+    svg_content.append(f'<text x="35" y="{ascii_y_start}" class="ascii">')
     for i, line in enumerate(ascii_art):
         y_pos = ascii_y_start + (i * ascii_line_height)
         escaped_line = escape_xml(line)
-        svg_content.append(f'  <tspan x="15" y="{y_pos:.1f}">{escaped_line}</tspan>')
+        svg_content.append(f'  <tspan x="35" y="{y_pos:.1f}">{escaped_line}</tspan>')
+
     svg_content.append(f'</text>')
     
     # Right Side: Render Info Panel
     svg_content.append(f'<text x="{right_x}" y="{right_y_start}" class="text">')
     y = right_y_start
+    # Total characters to align values neatly to the end
+    total_align_length = 65
     
-    # Header user and separator line combined
+    # Header user and separator line combined (dynamically padded with dashes to match total_align_length)
+    header_dashes = "-" * (total_align_length - len(USER_NAME) - 1)
+    user_header = f"{USER_NAME.lower()} {header_dashes}"
     svg_content.append(f'  <tspan x="{right_x}" y="{y}">{escape_xml(user_header)}</tspan>')
     y += right_line_height
-    
-    # Total characters to align values neatly to the end (Increased to 65 to utilize width and prevent cut-off)
-    total_align_length = 65
+
     
     for key, val in right_lines:
         if key == "SEPARATOR":

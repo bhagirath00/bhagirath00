@@ -1,0 +1,7 @@
+# Ignore local ASCII art template
+ascii-art.txt
+
+# Python virtual environment
+.venv/
+__pycache__/
+*.py[cod]
