@@ -128,35 +128,40 @@ def get_github_stats():
         
     return stats
 
-def load_and_trim_ascii():
-    """Reads ascii-art.txt, crops empty margins, and strips uniform indentation."""
-    ascii_path = "ascii-art.txt"
-    lines = []
-    
-    if os.path.exists(ascii_path):
-        with open(ascii_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-    else:
-        # Fallback to fetching remote ASCII art from GitHub Secrets URL or direct backup link
-        url = os.environ.get("ASCII_ART_URL") or "https://github.com/user-attachments/files/29977028/ascii-art.txt"
-        if url:
-
-            try:
-                res = requests.get(url, timeout=10)
-                if res.status_code == 200:
-                    lines = res.text.splitlines()
-                else:
-                    print(f"[!] Warning: Remote URL returned status code {res.status_code}")
-            except Exception as e:
-                print(f"[!] Error fetching remote ASCII art: {e}")
-                
-    if not lines:
-        return ["  _____   ", " /  _  \\  ", "|  / \\  | ", "|  \\_/  | ", " \\_____/  "]
+def extract_ascii_from_svg(svg_path):
+    """Extracts the ASCII art lines from an existing SVG file."""
+    if not os.path.exists(svg_path):
+        return None
+    try:
+        with open(svg_path, 'r', encoding='utf-8') as f:
+            content = f.read()
         
-    # Crucial: strip trailing whitespace/spaces from the right side of the art
-    lines = [line.rstrip() for line in lines]
+        import re
+        # Find the ascii text block
+        match = re.search(r'<text[^>]*class="ascii"[^>]*>(.*?)</text>', content, re.DOTALL)
+        if not match:
+            return None
+            
+        tspan_block = match.group(1)
+        lines = []
+        for line in tspan_block.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            tspan_match = re.search(r'<tspan[^>]*>(.*?)</tspan>', line)
+            if tspan_match:
+                val = tspan_match.group(1)
+                # Unescape XML entities
+                val = val.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+                val = val.replace("&apos;", "'").replace("&quot;", '"')
+                lines.append(val)
+        return lines
+    except Exception as e:
+        print(f"[!] Error extracting ASCII from SVG: {e}")
+        return None
 
-    
+def trim_ascii_lines(lines):
+    """Helper to crop and trim leading whitespace indentation from ASCII art lines."""
     # Find active range (first non-empty to last non-empty line)
     first_idx = 0
     last_idx = len(lines) - 1
@@ -173,9 +178,10 @@ def load_and_trim_ascii():
     if not active_lines:
         return ["(Empty ASCII Art)"]
         
+    # Crop to face only (first 49 lines) to discard wide shoulders
     active_lines = active_lines[:49]
         
-    # Find minimum leading indentation spaces across the remaining head/neck lines
+    # Find minimum leading indentation spaces
     min_spaces = sys.maxsize
     for line in active_lines:
         if line.strip():
@@ -184,7 +190,6 @@ def load_and_trim_ascii():
             if spaces < min_spaces:
                 min_spaces = spaces
                 
-    # Remove the uniform leading indentation (will remove 32 spaces, aligning the face to the far left)
     trimmed_lines = []
     for line in active_lines:
         if len(line) >= min_spaces:
@@ -193,6 +198,47 @@ def load_and_trim_ascii():
             trimmed_lines.append("")
             
     return trimmed_lines
+
+def load_and_trim_ascii():
+    """Reads ascii-art.txt, extracts from existing SVGs, or fetches remotely."""
+    ascii_path = "ascii-art.txt"
+    lines = []
+    
+    # 1. Try to load local file if it exists
+    if os.path.exists(ascii_path):
+        with open(ascii_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        lines = [line.rstrip() for line in lines]
+        return trim_ascii_lines(lines)
+        
+    # 2. Try to extract from existing local SVG (keeps the face from getting deleted on runner)
+    for path in [DARK_SVG_PATH, LIGHT_SVG_PATH]:
+        svg_lines = extract_ascii_from_svg(path)
+        if svg_lines:
+            # If the extracted lines don't look like the placeholder template, return them
+            if len(svg_lines) > 10 and not any("  _____   " in l for l in svg_lines):
+                print(f" -> Extracted ASCII art face from existing local {path}")
+                return svg_lines
+            
+    # 3. Try to fetch from remote URL if provided (using a standard User-Agent header)
+    url = os.environ.get("ASCII_ART_URL") or "https://github.com/user-attachments/files/29977028/ascii-art.txt"
+    if url:
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                lines = res.text.splitlines()
+                lines = [line.rstrip() for line in lines]
+                return trim_ascii_lines(lines)
+            else:
+                print(f"[!] Warning: Remote URL returned status code {res.status_code}")
+        except Exception as e:
+            print(f"[!] Error fetching remote ASCII art: {e}")
+            
+    return ["  _____   ", " /  _  \\  ", "|  / \\  | ", "|  \\_/  | ", " \\_____/  "]
+
 
 def generate_svg(theme_name, stats, ascii_art):
     """Generates the Neofetch terminal SVG file with right alignment justification."""
