@@ -32,8 +32,10 @@ jobs:
       - name: Generate SVGs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASCII_ART_URL: ${{ secrets.ASCII_ART_URL }}
         run: |
           python update_profile.py
+
 
       - name: Commit and Push changes
         run: |
